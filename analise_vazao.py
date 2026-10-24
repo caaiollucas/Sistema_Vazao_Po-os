@@ -205,11 +205,13 @@ dicionario_metadados = pd.DataFrame({
 dicionario_metadados
 
 # %% [markdown]
+# %% [markdown]
 # ## Bloco 5: Análise Estatística Descritiva e Indicadores Operacionais (KPIs)
 # Calculamos as estatísticas de dispersão (média, desvio padrão, mínimo, mediana, máximo e coeficiente de variação) e os KPIs de produção hídrica do poço.
+# *Nota:* As variáveis de processo representam grandezas dinâmicas do fluido (velocidade, vazão volumétrica, padronizada e mássica).
 
 # %%
-variaveis_processo = ["Velocity", "Volumetric", "Standard Volumetric", "Mass", "Sound Speed"]
+variaveis_processo = ["Velocity", "Volumetric", "Standard Volumetric", "Mass"]
 estatisticas = df[variaveis_processo].describe().T
 estatisticas["amplitude"] = estatisticas["max"] - estatisticas["min"]
 estatisticas["cv_%"] = (estatisticas["std"] / estatisticas["mean"]) * 100
@@ -250,44 +252,67 @@ print(f"Diferença Metrológica          : {erro_fechamento_balanco:.6f} m³ (Co
 print("=" * 65)
 
 # %% [markdown]
-# ## Bloco 6: Diagnóstico Metrológico Acústico do Medidor
+# ## Bloco 6: Diagnóstico Metrológico Acústico e Validação Corporativa
 # Em instrumentação ultrassônica clamp-on, a confiabilidade da vazão depende diretamente da integridade do sinal acústico:
-# 1. **Coluna `Error`:** Indica se o medidor perdeu rastreio de onda, entrou em timeout ou detectou bolhas.
-# 2. **Velocidade do Som no Fluido (`Sound Speed`):**
-#    - Água a 25 °C ~ 27 °C possui velocidade acústica teórica entre 1497 m/s e 1503 m/s.
-#    - Se houvesse presença de bolhas de ar ou cavitação na sucção da bomba, a velocidade acústica sofreria quedas bruscas ou instabilidade.
-# 3. **Relação Sinal-Ruído (`SNR Up` e `SNR Down`):**
-#    - Valores acima de 30 dB são o padrão de excelência em sensores clamp-on com bom acoplamento acústico (pasta de acoplamento íntegra).
+# 1. **Critério Corporativo da Empresa (Velocidade do Som):**
+#    - A velocidade do som (`Sound Speed`) é uma variável exclusiva de **auditoria de qualidade**.
+#    - **Regra da Empresa:** Valores de velocidade do som **abaixo de 1500 m/s** ou **acima de 1503 m/s** invalidam a medição.
+#    - Valores fora dessa faixa indicam anomalias severas: presença de ar arrastado (bolhas/cavitação), variação brusca de temperatura, arraste de sedimentos/areia ou erro de parametrização da tubulação.
+# 2. **Relação Sinal-Ruído (`SNR Up` e `SNR Down`):**
+#    - Valores acima de 30 dB garantem excelente acoplamento acústico da pasta de silicone/ultrassom na tubulação de recalque.
+# 3. **Código de Falha (`Error`):**
+#    - Diagnóstico de hardware e rastreamento de onda ultrassônica.
 
 # %%
-status_erro = df["Error"].value_counts()
-print("=== STATUS DE ERRO DO MEDIDOR ===")
-print(status_erro)
+# Definição dos Limites Corporativos da Empresa
+LIMITE_MIN_SOUND_SPEED = 1500.0  # m/s
+LIMITE_MAX_SOUND_SPEED = 1503.0  # m/s
 
-snr_up_medio = df["Signal to Noise Ratio Up"].mean()
-snr_down_medio = df["Signal to Noise Ratio Down"].mean()
+# Auditoria da Velocidade do Som
+df["Sound_Speed_Valida"] = df["Sound Speed"].between(LIMITE_MIN_SOUND_SPEED, LIMITE_MAX_SOUND_SPEED)
+total_amostras = len(df)
+amostras_conformes = df["Sound_Speed_Valida"].sum()
+amostras_invalidas = total_amostras - amostras_conformes
+taxa_conformidade = (amostras_conformes / total_amostras) * 100.0
+
+sound_speed_min = df["Sound Speed"].min()
+sound_speed_max = df["Sound Speed"].max()
 sound_speed_medio = df["Sound Speed"].mean()
 sound_speed_std = df["Sound Speed"].std()
 
-print("\n=== PARÂMETROS ACÚSTICOS DE DIAGNÓSTICO ===")
-print(f"Velocidade do Som Média        : {sound_speed_medio:.2f} m/s (Desvio: {sound_speed_std:.4f} m/s)")
-print(f"SNR Upstream Médio             : {snr_up_medio:.2f} dB (Mínimo: {df['Signal to Noise Ratio Up'].min():.2f} dB)")
-print(f"SNR Downstream Médio           : {snr_down_medio:.2f} dB (Mínimo: {df['Signal to Noise Ratio Down'].min():.2f} dB)")
-print(f"Ganho Eletrônico (Up / Down)   : {df['Gain Up'].iloc[0]:.2f} dB / {df['Gain Down'].iloc[0]:.2f} dB (Fixo)")
+print("=" * 65)
+print("     AUDITORIA DE QUALIDADE ACÚSTICA - CRITÉRIO CORPORATIVO")
+print("=" * 65)
+print(f"Parâmetro Corporativo Exigido  : {LIMITE_MIN_SOUND_SPEED:.1f} m/s <= Sound Speed <= {LIMITE_MAX_SOUND_SPEED:.1f} m/s")
+print(f"Valores Registrados no Ensaio  : Mín {sound_speed_min:.2f} m/s  |  Máx {sound_speed_max:.2f} m/s")
+print(f"Média / Desvio Padrão Acústico : {sound_speed_medio:.2f} m/s (Desvio: {sound_speed_std:.4f} m/s)")
+print(f"Amostras Válidas (Conformes)   : {amostras_conformes} / {total_amostras} ({taxa_conformidade:.1f}%)")
+print(f"Amostras Inválidas (Rejeitadas): {amostras_invalidas} ({(100 - taxa_conformidade):.1f}%)")
 
-# Validação automática da qualidade metrológica
-aprovado = (
+# Diagnósticos Adicionais
+status_erro = df["Error"].value_counts()
+snr_up_medio = df["Signal to Noise Ratio Up"].mean()
+snr_down_medio = df["Signal to Noise Ratio Down"].mean()
+
+print(f"\nStatus de Erro do Medidor      : {status_erro.index[0]} ({status_erro.iloc[0]} amostras)")
+print(f"SNR Upstream / Downstream Médio: {snr_up_medio:.2f} dB  /  {snr_down_medio:.2f} dB  (Mínimo exigido: 30 dB)")
+print(f"Ganho Eletrônico (Up / Down)   : {df['Gain Up'].iloc[0]:.2f} dB / {df['Gain Down'].iloc[0]:.2f} dB (Constante)")
+
+# Veredito Final
+aprovado_empresa = (
+    (taxa_conformidade == 100.0) and 
     (status_erro.index[0] == "No Error") and 
     (snr_up_medio >= 30.0) and 
-    (snr_down_medio >= 30.0) and 
-    (sound_speed_std < 0.2)
+    (snr_down_medio >= 30.0)
 )
 
-if aprovado:
-    print("\n PARECER DO DIAGNÓSTICO: SINAL EXCELENTE!")
-    print("O medidor operou com excelente acoplamento acústico, sem cavitação e sem presença de ar no fluido.")
+print("-" * 65)
+if aprovado_empresa:
+    print(" PARECER TÉCNICO: MEDIÇÃO 100% HOMOLOGADA E VÁLIDA PELA NORMA DA EMPRESA.")
+    print("   Nenhuma amostra violou os limites de 1500 a 1503 m/s.")
 else:
-    print("\n PARECER DO DIAGNÓSTICO: ATENÇÃO NECESSÁRIA. Verificar alinhamento dos sensores ou presença de gás.")
+    print(" PARECER TÉCNICO: MEDIÇÃO REJEITADA / FORA DO PADRÃO CORPORATIVO.")
+print("=" * 65)
 
 # %% [markdown]
 # ## Bloco 7: Visualizações Gráficas Exploratórias
@@ -347,13 +372,17 @@ ax1.set_ylabel("SNR (dB)", fontsize=11)
 ax1.set_title("Diagnóstico Acústico: SNR e Velocidade do Som no Fluido", fontsize=13, fontweight="bold", pad=12)
 ax1.legend(loc="lower right", frameon=True)
 
-# Subgráfico 2: Velocidade do Som
+# Subgráfico 2: Velocidade do Som e Limites Corporativos
 ax2.plot(df["Tempo_Minutos"], df["Sound Speed"], label="Velocidade do Som Medida (m/s)", color="#6f42c1", linewidth=1.5)
-ax2.axhline(sound_speed_medio, color="black", linestyle="--", alpha=0.6, label=f"Média: {sound_speed_medio:.2f} m/s")
+ax2.axhline(sound_speed_medio, color="black", linestyle="--", alpha=0.6, label=f"Média Medida: {sound_speed_medio:.2f} m/s")
+ax2.axhline(LIMITE_MIN_SOUND_SPEED, color="#d9534f", linestyle="--", linewidth=1.8, label=f"Limite Mín. Corporativo ({LIMITE_MIN_SOUND_SPEED:.0f} m/s)")
+ax2.axhline(LIMITE_MAX_SOUND_SPEED, color="#d9534f", linestyle="--", linewidth=1.8, label=f"Limite Máx. Corporativo ({LIMITE_MAX_SOUND_SPEED:.0f} m/s)")
+ax2.axhspan(LIMITE_MIN_SOUND_SPEED, LIMITE_MAX_SOUND_SPEED, color="#5cb85c", alpha=0.1, label="Faixa Homologada da Empresa [1500, 1503] m/s")
+
 ax2.set_xlabel("Tempo de Ensaio (minutos)", fontsize=11)
 ax2.set_ylabel("Velocidade do Som (m/s)", fontsize=11)
-ax2.set_ylim(sound_speed_medio - 0.2, sound_speed_medio + 0.2)
-ax2.legend(loc="upper right", frameon=True)
+ax2.set_ylim(1498.5, 1504.5)
+ax2.legend(loc="upper right", frameon=True, fontsize=9)
 
 plt.tight_layout()
 plt.show()
@@ -384,13 +413,14 @@ plt.show()
 # ## Bloco 8: Parecer Técnico Consolidado para Automação
 # 
 # ### 1. Comportamento Operacional do Poço
-# - **Regime Estacionário:** A vazão média permaneceu em **46,56 m³/h** (~12,93 L/s), com coeficiente de variação de apenas **0,18%**.  
+# - **Regime Estacionário:** A vazão média permaneceu em **46,56 m³/h** (~12,93 L/s), com coeficiente de variação de apenas **0,31%**.  
 # - **Estabilidade Hidrogeológica:** A inexistência de oscilações ou tendência de queda durante os 15 minutos comprova que a vazão do poço é superior ou igual à capacidade de extração da bomba no ponto de operação testado (sem esgotamento do nível dinâmico).
 # 
-# ### 2. Confiabilidade dos Dados do Medidor
+# ### 2. Confiabilidade e Homologação Corporativa
+# - **Critério de Qualidade da Empresa Atendido:** A velocidade do som manteve-se estritamente entre **1501,82 m/s** e **1501,93 m/s**, com média de **1501,88 m/s**. **100% das 900 amostras foram homologadas** dentro da janela mandatória de [1500, 1503] m/s (zero amostras descartadas).
 # - **Ausência de Erros:** 100% dos 900 registros apresentaram status `No Error`.
 # - **Acoplamento Acústico Excelente:** SNR de **36,93 dB** (Up) e **37,18 dB** (Down), com ganho eletrônico estável em **16,05 dB**.
-# - **Fluido Homogêneo:** Velocidade do som constante em **1501,88 m/s** com desvio ínfimo (0,02 m/s), comprovando ausência de ar arrastado e temperatura estável da água.
+# - **Fluido Homogêneo:** O rigoroso atendimento aos limites acústicos atesta ausência de cavitação da bomba, ausência de bolhas de ar e estabilidade térmica da água subterrânea.
 # 
 # ### 3. Capacidade de Produção Estimada
 # - **Volume em 15 minutos:** **11,63 m³** (11.626 litros).

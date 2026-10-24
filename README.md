@@ -25,9 +25,9 @@ O objetivo deste projeto é:
 | **Estabilidade da Bomba (CV%)** | **0,31%** | Desvio padrão ínfimo (0,08 m³/h), sem golpe de aríete |
 | **Volume Total Extraído** | **11.626,11 L** (**11,63 m³**) | Registrado pelo totalizador direto do medidor |
 | **Velocidade Média no Tubo** | **2,51 m/s** | Escoamento turbulento plenamente desenvolvido |
-| **Velocidade do Som no Fluido** | **1501,88 m/s** | Confirma água pura a ~26,5 °C sem aeração |
+| **Velocidade do Som no Fluido** | **1501,88 m/s** (Mín 1501,83 / Máx 1501,93) | **100% Homologado:** estritamente dentro da faixa mandatória da empresa (**1500 a 1503 m/s**) |
 | **Relação Sinal-Ruído (SNR)** | **36,93 dB** (Up) / **37,18 dB** (Down) | Muito acima do limite mínimo recomendado (> 30 dB) |
-| **Status de Erro** | **0 falhas** (`No Error` em 100%) | Medição 100% válida e confiável |
+| **Status de Erro** | **0 falhas** (`No Error` em 100%) | Medição 100% válida e em conformidade |
 
 ---
 
